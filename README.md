@@ -81,7 +81,8 @@ GATEWAY_API_KEY=<key> ./run.sh      # http://127.0.0.1:8899
 Creates its own venv from `requirements.txt` on first run. Browsing the graph
 needs no key; the **Ask** feature calls an LLM through a local
 [agentgateway](https://agentgateway.dev) at `GATEWAY_URL` (default
-`http://localhost:4000`) and returns 503 without one. If `GATEWAY_API_KEY` is
+`http://localhost:4000`). With no key it returns 503; with a key but no gateway
+listening, 502. If `GATEWAY_API_KEY` is
 unset, `app.py` falls back to reading the key from
 `~/.config/agentgateway/config.yaml` — that keeps the secret off the command
 line, where `ps` would show it. No credentials live in this repo.
