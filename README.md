@@ -49,6 +49,21 @@ modifies spantree — its local diff is npm and build artifacts only.
 
 ## Prerequisites
 
+**Linux x86-64.** `run.sh` is not portable to macOS, in one fatal way and three
+cosmetic ones:
+
+- it downloads a `linux-x64` Node tarball, so step 1 fails outright on a Mac —
+  everything after it needs `npx tree-sitter`
+- it reads `/proc/meminfo` for the memory warning and writes
+  `/proc/self/oom_score_adj` to steer the OOM killer; neither exists on macOS,
+  so those guards quietly do nothing
+- it uses GNU `stat -c%s` (BSD wants `-f%z`) and `readlink -f`, which older
+  BSD/macOS `readlink` lacks
+
+Nothing else is Linux-bound: the vendored `parser.c` is portable C, and clang
+handles the `gcc -fPIC -shared` build fine. Porting is a `uname`-based tarball
+selection plus those three substitutions — untried here.
+
 - `gcc`, `python3` (3.10+), `curl`, `git`
 - [`uv`](https://docs.astral.sh/uv/) — creates the virtualenvs
 - [`gh`](https://cli.github.com/), authenticated (`gh auth login`) — the working
