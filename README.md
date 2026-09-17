@@ -54,13 +54,12 @@ modifies spantree — its local diff is npm and build artifacts only.
 - [`gh`](https://cli.github.com/), authenticated (`gh auth login`) — the working
   copy of the corpus used by the comparison is fetched through the GitHub API.
   The graph's copy is tracked in `carddemo-graph/`, so the graph builds without it.
-- **~6 GB free RAM, and ~16 minutes of patience.** Building the spantree parser
-  from `grammar.js` peaks at **5.7 GB RSS** and takes **15m37s** (measured, 4
-  vCPU). The time is table construction, not paging — the same 15m37s on a
-  swap-thrashed 4 GB box and on an idle 16 GB one, with zero swaps on the
-  latter. `run.sh` nices the step and sets `oom_score_adj=1000` so the kernel
-  kills it rather than your shell, and step 5 warns up front when less than
-  2.5 GB is available.
+- Modest RAM — the expensive step is pre-built. `tree-sitter generate` on the
+  spantree grammar peaks at **5.7 GB RSS** and takes **15m37s** (measured,
+  4 vCPU), so its output is checked into `vendor/spantree-parser/` and `run.sh`
+  copies it into place. You only need those 6 GB and that quarter hour if you
+  run `REGENERATE=1 ./run.sh` to rebuild it from `grammar.js`, which is
+  necessary only when bumping the pinned grammar commit.
 - Nothing extra for graphify: `run.sh` clones it, installs our extractor into
   the checkout, and builds a `.venv-graphify` holding it alongside the parser.
 
@@ -116,6 +115,7 @@ missing parser, from the opposite cause. `run.sh` refreshes this copy from the
 | `cobol.py` | shared parsing/query helpers over the two grammars |
 | `shapes.py`, `shapes2.py`, `shapes3.py`, `ast_survey.py` | one-off AST shape surveys used while reading the grammars |
 | `pywheel/` | packages the spantree grammar as the `tree_sitter_cobol` module the extractor imports |
+| `vendor/spantree-parser/` | the pre-generated parser that lets a clone skip the 16-minute build, with its provenance |
 | `extensions/graphify-cobol/` | the COBOL extractor and its wiring patch, with its own README |
 
 `run.sh` builds and installs `pywheel` for you (step 8c–8d), copying the

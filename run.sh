@@ -43,9 +43,27 @@ if [ ! -x .venv/bin/python ]; then
   uv venv -q .venv && VIRTUAL_ENV=.venv uv pip install -q "tree-sitter>=0.23,<0.26"
 fi
 
-# 5. spantree clone + generate (the memory hog: capped at 2.5 GB virtual so the
-#    OOM killer takes THIS process, not the parent session)
-[ -d spantree ] || { log "cloning spantree"; git clone --depth 1 -q https://github.com/Spantree/tree-sitter-cobol-enterprise.git spantree; }
+# 5. spantree grammar -> parser.c. Normally satisfied by the checked-in parser
+#    in vendor/spantree-parser; REGENERATE=1 forces the real 16-minute build.
+#    Pinned by commit because parser.c and the repo's hand-written scanner.c
+#    share an ABI, and a --depth 1 clone of the default branch drifts.
+SPANTREE_COMMIT=86a2c479cb7e299e8dc3bb9db7a346502335d21e
+if [ ! -d spantree ]; then
+  log "cloning spantree @ ${SPANTREE_COMMIT:0:12}"
+  mkdir -p spantree && ( cd spantree && git init -q . \
+    && git remote add origin https://github.com/Spantree/tree-sitter-cobol-enterprise.git \
+    && git fetch --depth 1 -q origin "$SPANTREE_COMMIT" \
+    && git checkout -q FETCH_HEAD ) || { log "FAILED: could not fetch pinned spantree commit"; exit 1; }
+fi
+
+# Use the vendored parser unless it is missing or the caller wants a real build.
+if [ ! -f spantree/src/parser.c ] && [ -z "${REGENERATE:-}" ] && [ -f vendor/spantree-parser/parser.c ]; then
+  log "using vendored parser (REGENERATE=1 to build it from grammar.js instead)"
+  mkdir -p spantree/src/tree_sitter
+  cp vendor/spantree-parser/parser.c vendor/spantree-parser/node-types.json spantree/src/
+  cp vendor/spantree-parser/tree_sitter/*.h spantree/src/tree_sitter/
+fi
+
 if [ ! -f spantree/src/parser.c ]; then
   cd spantree
   [ -d node_modules/tree-sitter-cli ] || { log "installing tree-sitter-cli"; npm install --silent tree-sitter-cli@0.25.9 >>../gen.log 2>&1; }
@@ -67,7 +85,7 @@ if [ ! -f spantree/src/parser.c ]; then
   if [ ! -f spantree/src/parser.c ]; then
     log "FAILED: generate wrote no parser.c (had ${AVAIL}MB available)."
     [ -f spantree/src/grammar.json ] && log "        grammar.json exists, so it died during the table build — out of memory."
-    log "        Free ~2.5GB (check swap too) and re-run; this script resumes here."
+    log "        Free ~6GB (check swap too) and re-run; this script resumes here."
     exit 1
   fi
 fi
