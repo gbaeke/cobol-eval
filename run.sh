@@ -50,8 +50,10 @@ if [ ! -f spantree/src/parser.c ]; then
   cd spantree
   [ -d node_modules/tree-sitter-cli ] || { log "installing tree-sitter-cli"; npm install --silent tree-sitter-cli@0.25.9 >>../gen.log 2>&1; }
   AVAIL=$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)
-  [ "${AVAIL:-0}" -lt 2500 ] && log "warning: ${AVAIL}MB available, generate wants ~2500MB"
-  log "generating spantree parser (niced; ~2.5G, several minutes)"
+  # Measured peak RSS is 5.7GB. Below that it can still finish by paging, as it
+  # once did on a 3.9GB box with 2GB of swap, so this warns rather than refuses.
+  [ "${AVAIL:-0}" -lt 5800 ] && log "warning: ${AVAIL}MB available, generate peaks at ~5700MB"
+  log "generating spantree parser (niced; peaks ~5.7G, ~16 min)"
   # oom_score_adj=1000 makes the kernel pick THIS process first under pressure,
   # without capping its address space (ulimit -v kills the Rust CLI instantly).
   ( echo 1000 > /proc/self/oom_score_adj; exec nice -n 19 npx tree-sitter generate ) >>../gen.log 2>&1

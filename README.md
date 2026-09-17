@@ -54,9 +54,13 @@ modifies spantree — its local diff is npm and build artifacts only.
 - [`gh`](https://cli.github.com/), authenticated (`gh auth login`) — the working
   copy of the corpus used by the comparison is fetched through the GitHub API.
   The graph's copy is tracked in `carddemo-graph/`, so the graph builds without it.
-- **~3 GB free RAM.** Generating the spantree parser from `grammar.js` is the
-  memory hog; `run.sh` nices it and sets `oom_score_adj=1000` so the kernel kills
-  that step rather than your shell. It takes several minutes.
+- **~6 GB free RAM, and ~16 minutes of patience.** Building the spantree parser
+  from `grammar.js` peaks at **5.7 GB RSS** and takes **15m37s** (measured, 4
+  vCPU). The time is table construction, not paging — the same 15m37s on a
+  swap-thrashed 4 GB box and on an idle 16 GB one, with zero swaps on the
+  latter. `run.sh` nices the step and sets `oom_score_adj=1000` so the kernel
+  kills it rather than your shell, and step 5 warns up front when less than
+  2.5 GB is available.
 - Nothing extra for graphify: `run.sh` clones it, installs our extractor into
   the checkout, and builds a `.venv-graphify` holding it alongside the parser.
 
