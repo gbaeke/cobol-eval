@@ -1,0 +1,39 @@
+# Third-party clones with their own history. run.sh re-clones spantree;
+# gf is https://github.com/Graphify-Labs/graphify. Not submodules on purpose —
+# nothing here modifies them.
+/spantree/
+/gf/
+
+# Toolchains and environments, all reproducible from run.sh / uv.
+/node-v22.14.0-linux-x64/
+node_modules/
+.venv/
+__pycache__/
+*.py[cod]
+
+# Downloaded corpora (run.sh step 3 fetches these from aws-samples).
+/carddemo/cbl/
+/carddemo/cpy/
+/carddemo-graph/cbl/
+/carddemo-graph/cpy/
+
+# Generated: grammar sources pulled from upstream, compiled parsers, graph output.
+/cobol/src/
+/cobol/*.so
+/pywheel/src/
+/pywheel/build/
+/pywheel/*.egg-info/
+*.so
+*.o
+/carddemo-graph/graphify-out/
+
+# Run logs and scratch output.
+*.log
+compare.err
+
+# Secrets — nothing here today, and it stays that way.
+.env
+.env.*
+*.pem
+*.key
+config.yaml

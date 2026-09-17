@@ -1,0 +1,67 @@
+file              bytes  yutaro%  spantree%   kind
+CBACT01C.cbl      17450      0.0        0.0   batch
+CBACT02C.cbl      14096      0.0        0.0   batch
+CBACT03C.cbl      14101      0.0        0.0   batch
+CBACT04C.cbl      52479     70.1        0.0   batch
+CBCUS01C.cbl       6914      0.0        0.0   batch
+CBEXPORT.cbl      24197      0.4        0.0   batch
+CBIMPORT.cbl      20239    100.0        0.0   batch
+CBSTM03A.CBL      35574     13.1        0.0   batch
+CBSTM03B.CBL       6983      0.0        0.0   batch
+CBTRN01C.cbl      17967      0.0        0.0   batch
+CBTRN02C.cbl      58890      0.0        0.0   batch
+CBTRN03C.cbl      52239     72.2        0.0   batch
+COACTUPC.cbl     182463     73.1        0.0   CICS
+COACTVWC.cbl      74764     71.8        0.0   CICS
+COADM01C.cbl      22736     72.2        0.0   CICS
+COBIL00C.cbl      23426     79.4        0.0   CICS
+COBSWAIT.cbl       2020      0.0        0.0   batch
+COCRDLIC.cbl     117376     57.7        0.0   CICS
+COCRDSLC.cbl      71308     71.3        0.0   CICS
+COCRDUPC.cbl     125961     76.4        0.0   CICS
+COMEN01C.cbl      12461     74.2        0.0   CICS
+CORPT00C.cbl      28302     73.2        0.0   CICS
+COSGN00C.cbl      10288     67.0        0.0   CICS
+COTRN00C.cbl      29270     84.8        0.0   CICS
+COTRN01C.cbl      14244     71.4        0.0   CICS
+COTRN02C.cbl      33665     84.9        0.0   CICS
+COUSR00C.cbl      29285     83.7        0.0   CICS
+COUSR01C.cbl      12571     73.7        0.0   CICS
+COUSR02C.cbl      17611     77.6        0.0   CICS
+COUSR03C.cbl      15038     73.7        0.0   CICS
+CSUTLDTC.cbl      11608      0.0        0.0   batch
+COADM02Y.cpy       5014     65.9        0.0   cpy
+COCOM01Y.cpy       2714     48.5        0.0   cpy
+CODATECN.cpy       2723     68.1        0.0   cpy
+COMEN02Y.cpy       5324     74.2        0.0   cpy
+COSTM01.CPY        1999     49.8        0.0   cpy
+COTTL01Y.cpy       1642     23.0        0.0   cpy
+CSDAT01Y.cpy       3234     60.9        0.0   cpy
+CSLKPCDY.cpy      51399     97.0        0.0   cpy
+CSMSG01Y.cpy       1533     17.5        0.0   cpy
+CSMSG02Y.cpy       1921     19.0        0.0   cpy
+CSSETATY.cpy       1885     29.1        0.2   cpy
+CSSTRPFY.cpy       6603     79.7        0.0   cpy
+CSUSR01Y.cpy       1582     20.0        0.0   cpy
+CSUTLDPY.cpy      13061     93.2        0.0   cpy
+CSUTLDWY.cpy       5263     94.3        0.0   cpy
+CUSTREC.cpy        1518     80.2        0.0   cpy
+CVACT01Y.cpy       1125     73.5        0.0   cpy
+CVACT02Y.cpy        730     59.7        0.0   cpy
+CVACT03Y.cpy        736     52.7        0.0   cpy
+CVCRD01Y.cpy       3436     96.9        0.0   cpy
+CVCUS01Y.cpy       1588     81.2        0.0   cpy
+CVEXPORT.cpy       6168     90.2        0.0   cpy
+CVTRA01Y.cpy        898     61.2        0.0   cpy
+CVTRA02Y.cpy        898     61.2        0.0   cpy
+CVTRA03Y.cpy        655     46.9        0.0   cpy
+CVTRA04Y.cpy        817     57.4        0.0   cpy
+CVTRA05Y.cpy       1546     77.5        0.0   cpy
+CVTRA06Y.cpy       1538     77.9        0.0   cpy
+CVTRA07Y.cpy       5758     88.3        0.0   cpy
+UNUSED1Y.cpy        406     76.1        0.0   cpy
+
+group    files  yutaro mean%  yutaro clean  spantree mean%  spantree clean
+batch       14          18.3         10/14             0.0           14/14
+CICS        17          74.5          0/17             0.0           17/17
+cpy         30          64.0          0/30             0.0           30/30

@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CardDemo Graph Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#10151c; --ink-2:#47535f; --ink-3:#7b8894;
+  --ground:#f3f1ec; --panel:#fbfaf7; --line:#ddd8cd;
+  --accent:#1f6f5c; --accent-soft:#e3efe9;
+  --warn:#9a5b12; --infer:#7a5ea8;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --ink:#e8e6e1; --ink-2:#a8b2bb; --ink-3:#77838d;
+  --ground:#14181d; --panel:#1b2027; --line:#2c333c;
+  --accent:#5fc0a4; --accent-soft:#1d2e2a; --warn:#d69a52; --infer:#b199d8;
+}}
+:root[data-theme="dark"]{
+  --ink:#e8e6e1; --ink-2:#a8b2bb; --ink-3:#77838d;
+  --ground:#14181d; --panel:#1b2027; --line:#2c333c;
+  --accent:#5fc0a4; --accent-soft:#1d2e2a; --warn:#d69a52; --infer:#b199d8;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.55 var(--sans)}
+a{color:inherit}
+header{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;
+  padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel);
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+h1{margin:0;font-size:16px;font-weight:600;letter-spacing:.01em}
+.sub{color:var(--ink-3);font:12px/1.4 var(--mono)}
+main{display:grid;grid-template-columns:260px minmax(0,1fr) minmax(0,1.1fr);
+  gap:1px;background:var(--line);min-height:calc(100% - 52px)}
+section{background:var(--ground);padding:16px 18px;min-width:0}
+@media (max-width:1000px){ main{grid-template-columns:1fr} }
+h2{font:600 11px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);margin:0 0 10px}
+input[type=search],textarea{width:100%;font:14px var(--sans);color:var(--ink);
+  background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+textarea{font-family:var(--sans);resize:vertical;min-height:64px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+ul{list-style:none;margin:0;padding:0}
+.item{display:flex;justify-content:space-between;gap:8px;align-items:center;
+  padding:5px 7px;border-radius:5px;cursor:pointer;font:13px var(--mono)}
+.item:hover{background:var(--accent-soft)}
+.item.on{background:var(--accent-soft);box-shadow:inset 2px 0 0 var(--accent)}
+.k{font:10px var(--mono);color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em}
+.scroll{max-height:38vh;overflow:auto}
+.detail-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.detail-head strong{font:600 18px var(--mono)}
+.where{font:11px var(--mono);color:var(--ink-3)}
+.edge{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:baseline;
+  padding:4px 0;border-bottom:1px solid var(--line);font:12.5px var(--mono)}
+.edge:last-child{border-bottom:0}
+.rel{color:var(--accent);white-space:nowrap}
+.rel.inferred{color:var(--infer)}
+.tgt{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+.edge .where{text-align:right}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 12px}
+.chip{font:12px var(--sans);padding:6px 10px;border:1px solid var(--line);
+  background:var(--panel);border-radius:14px;cursor:pointer;text-align:left}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip.deep{border-style:dashed;color:var(--ink-2)}
+.row{display:flex;gap:8px;align-items:center;margin-top:8px}
+button.go{font:500 14px var(--sans);background:var(--accent);color:#fff;border:0;
+  border-radius:6px;padding:9px 16px;cursor:pointer}
+button.go[disabled]{opacity:.5;cursor:default}
+button.go.alt{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+#trace{margin-top:10px;font:11.5px/1.7 var(--mono);color:var(--ink-3)}
+#trace div{padding-left:14px;text-indent:-14px}
+select{font:12px var(--mono);background:var(--panel);color:var(--ink);
+  border:1px solid var(--line);border-radius:6px;padding:8px}
+#answer{margin-top:14px;white-space:pre-wrap;font:14.5px/1.62 var(--sans)}
+#answer code,#answer .cite{font:12.5px var(--mono);color:var(--ink-2)}
+.meta{margin-top:10px;font:11px var(--mono);color:var(--ink-3)}
+.err{color:var(--warn);font:13px var(--sans)}
+.stat{display:flex;gap:14px;flex-wrap:wrap;font:12px var(--mono);color:var(--ink-2)}
+.stat b{color:var(--ink);font-weight:600}
+.legend{font:11px/1.6 var(--mono);color:var(--ink-3);margin-top:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>CardDemo Graph Explorer</h1>
+  <div class="sub" id="hdr">loading…</div>
+</header>
+<main>
+  <section>
+    <h2>Search</h2>
+    <input type="search" id="q" placeholder="COBIL00C, CVACT01Y, 1000-…" autocomplete="off">
+    <div class="scroll" id="results" style="margin-top:8px"></div>
+    <h2 style="margin-top:18px">Programs</h2>
+    <div class="scroll" id="programs"></div>
+    <h2 style="margin-top:18px">Copybooks</h2>
+    <div class="scroll" id="copybooks"></div>
+  </section>
+
+  <section>
+    <h2>Detail</h2>
+    <div id="detail"><p class="sub">Pick a program or copybook to see what it calls, what calls it, and which files it touches.</p></div>
+  </section>
+
+  <section>
+    <h2>Ask about this system</h2>
+    <div class="chips" id="samples"></div>
+    <textarea id="question" placeholder="Ask anything about how these programs fit together…"></textarea>
+    <div class="row">
+      <button class="go" id="askBtn">Ask</button>
+      <button class="go alt" id="digBtn" title="Reads the actual COBOL source — slower">Dig deeper</button>
+      <select id="model">
+        <option value="anthropic-prod/fast">anthropic-prod/fast</option>
+        <option value="openai-prod/fast">openai-prod/fast</option>
+        <option value="openrouter/deepseek">openrouter/deepseek</option>
+      </select>
+    </div>
+    <div id="answer"></div>
+    <div id="trace"></div>
+    <div class="meta" id="answerMeta"></div>
+    <div class="legend">
+      PERFORM = internal paragraph call · CALL = external program ·
+      XCTL = screen hand-off (no return) · COPY = shared record layout ·
+      <span style="color:var(--infer)">INFERRED</span> = resolved through a variable
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = (p) => fetch(p).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)));
+let STATS = null;
+
+const SAMPLES = [
+  "What does this system do, in plain English?",
+  "If I change the copybook CVACT01Y, which programs break?",
+  "How does a user get from the main menu COMEN01C to the card list screen?",
+  "What does COBIL00C do and which files does it touch?",
+  "Walk me through what CBTRN02C does step by step.",
+  "Which programs are the architectural hubs, and why are they so connected?",
+  "Which VSAM datasets does the system read or write?",
+  "What is CEE3ABD and why do so many programs call it?"
+];
+
+// These need the source, not the graph — they open in Dig deeper.
+const DEEP_SAMPLES = [
+  "In COBIL00C, under what conditions is a bill payment rejected?",
+  "What exactly does CBTRN02C do to a transaction record, step by step?",
+  "Where is an account balance actually updated, and by what arithmetic?",
+  "What validation runs before a new user is added in COUSR01C?"
+];
+
+function renderList(el, labels, kind) {
+  el.innerHTML = "";
+  labels.forEach(l => {
+    const li = document.createElement("div");
+    li.className = "item"; li.dataset.label = l;
+    li.innerHTML = `<span>${l}</span><span class="k">${kind}</span>`;
+    li.onclick = () => openLabel(l);
+    el.appendChild(li);
+  });
+}
+
+async function openLabel(label) {
+  const hits = await api("/api/search?q=" + encodeURIComponent(label));
+  const best = hits.find(h => h.label.toUpperCase() === label.toUpperCase()) || hits[0];
+  if (best) openNode(best.id);
+}
+
+async function openNode(id) {
+  const d = await api("/api/node?id=" + encodeURIComponent(id));
+  const n = d.node;
+  const edgeRow = (e, dir) => {
+    const inf = e.confidence === "INFERRED" ? " inferred" : "";
+    const rel = e.relation + (e.context ? "/" + e.context : "");
+    const arrow = dir === "out" ? "→" : "←";
+    return `<div class="edge"><span class="rel${inf}">${arrow} ${rel}</span>`
+         + `<span class="tgt" data-id="${e.id}">${e.label}</span>`
+         + `<span class="where">${e.where}</span></div>`;
+  };
+  const calls = d.outgoing.filter(e => e.relation !== "contains");
+  const contains = d.outgoing.filter(e => e.relation === "contains");
+  $("#detail").innerHTML =
+    `<div class="detail-head"><strong>${n.label}</strong><span class="k">${n.kind}</span>
+       <span class="where">${n.source_file || "referenced only"} ${n.source_location || ""}</span></div>
+     ${calls.length ? `<h2 style="margin-top:14px">Depends on (${calls.length})</h2>` + calls.map(e => edgeRow(e,"out")).join("") : ""}
+     ${d.incoming.length ? `<h2 style="margin-top:16px">Used by (${d.incoming.length})</h2>` + d.incoming.map(e => edgeRow(e,"in")).join("") : ""}
+     ${contains.length ? `<h2 style="margin-top:16px">Paragraphs (${contains.length})</h2>` + contains.map(e => edgeRow(e,"out")).join("") : ""}`;
+  $("#detail").querySelectorAll(".tgt").forEach(el =>
+    el.onclick = () => openNode(el.dataset.id));
+  $("#question").value = $("#question").value || `What does ${n.label} do?`;
+}
+
+$("#q").oninput = async (ev) => {
+  const v = ev.target.value.trim();
+  if (v.length < 2) { $("#results").innerHTML = ""; return; }
+  const hits = await api("/api/search?q=" + encodeURIComponent(v));
+  $("#results").innerHTML = hits.map(h =>
+    `<div class="item" data-id="${h.id}"><span>${h.label}</span><span class="k">${h.kind}</span></div>`).join("");
+  $("#results").querySelectorAll(".item").forEach(el =>
+    el.onclick = () => openNode(el.dataset.id));
+};
+
+async function ask(q, deep = false) {
+  $("#question").value = q;
+  $("#answer").textContent = deep ? "Reading the COBOL…" : "Thinking…";
+  $("#answerMeta").textContent = "";
+  $("#trace").innerHTML = "";
+  $("#askBtn").disabled = $("#digBtn").disabled = true;
+  try {
+    const r = await fetch(deep ? "/api/investigate" : "/api/ask", {
+      method: "POST", headers: {"content-type": "application/json"},
+      body: JSON.stringify({question: q, model: $("#model").value})
+    });
+    const data = await r.json();
+    if (!r.ok) throw data;
+    $("#answer").textContent = data.answer;
+    if (data.trace) {
+      $("#trace").innerHTML = data.trace.map(t => {
+        const args = Object.entries(t).filter(([k]) => k !== "tool")
+          .map(([k, v]) => `${k}=${v}`).join(" ");
+        return `<div>→ ${t.tool}(${args})</div>`;
+      }).join("");
+    }
+    $("#answerMeta").textContent = data.mode === "agent"
+      ? `${data.model} · agent · ${data.trace.length} tool calls against the source`
+      : `${data.model} · grounded in ${data.facts_chars} chars of graph facts`
+        + (data.entities.length ? ` · matched ${data.entities.join(", ")}` : " · whole-system overview");
+  } catch (e) {
+    $("#answer").innerHTML = `<span class="err">${e.detail || e.message || "request failed"}</span>`;
+  } finally {
+    $("#askBtn").disabled = $("#digBtn").disabled = false;
+  }
+}
+
+$("#askBtn").onclick = () => { const q = $("#question").value.trim(); if (q) ask(q, false); };
+$("#digBtn").onclick = () => { const q = $("#question").value.trim(); if (q) ask(q, true); };
+$("#question").onkeydown = (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") $("#askBtn").click();
+};
+
+(async () => {
+  STATS = await api("/api/stats");
+  $("#hdr").innerHTML = `<b>${STATS.nodes}</b> nodes · <b>${STATS.edges}</b> edges · `
+    + `${STATS.kinds.program || 0} programs · ${STATS.kinds.copybook || 0} copybooks · `
+    + `${STATS.kinds.paragraph || 0} paragraphs`;
+  renderList($("#programs"), STATS.programs, "program");
+  renderList($("#copybooks"), STATS.copybooks, "copybook");
+  $("#samples").innerHTML =
+    SAMPLES.map(s => `<button class="chip" data-deep="0">${s}</button>`).join("")
+    + DEEP_SAMPLES.map(s => `<button class="chip deep" data-deep="1">⌕ ${s}</button>`).join("");
+  $("#samples").querySelectorAll(".chip").forEach(b => b.onclick = () => {
+    const deep = b.dataset.deep === "1";
+    ask(b.textContent.replace(/^⌕ /, ""), deep);
+  });
+  if (STATS.programs.length) openLabel(STATS.programs.find(p => p === "COBIL00C") || STATS.programs[0]);
+})();
+</script>
+</body>
+</html>
