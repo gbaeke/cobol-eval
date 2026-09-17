@@ -51,8 +51,9 @@ modifies spantree — its local diff is npm and build artifacts only.
 
 - `gcc`, `python3` (3.10+), `curl`, `git`
 - [`uv`](https://docs.astral.sh/uv/) — creates the virtualenvs
-- [`gh`](https://cli.github.com/), authenticated (`gh auth login`) — the CardDemo
-  corpus is fetched through the GitHub API
+- [`gh`](https://cli.github.com/), authenticated (`gh auth login`) — the working
+  copy of the corpus used by the comparison is fetched through the GitHub API.
+  The graph's copy is tracked in `carddemo-graph/`, so the graph builds without it.
 - **~3 GB free RAM.** Generating the spantree parser from `grammar.js` is the
   memory hog; `run.sh` nices it and sets `oom_score_adj=1000` so the kernel kills
   that step rather than your shell. It takes several minutes.
@@ -87,6 +88,20 @@ line, where `ps` would show it. No credentials live in this repo.
 
 Other knobs: `GATEWAY_MODEL` (default `anthropic-prod/fast`), `GRAPH_PATH`,
 `HOST`, `PORT`.
+
+## The corpus
+
+`carddemo-graph/{cbl,cpy}` holds the 61 CardDemo sources the graph is built
+from — 31 programs and 30 copybooks from
+[aws-samples/aws-mainframe-modernization-carddemo](https://github.com/aws-samples/aws-mainframe-modernization-carddemo),
+Apache-2.0, unmodified.
+
+They're tracked rather than ignored for a non-obvious reason: graphify reads
+`.gitignore` when walking a tree and only exempts paths already in git's index.
+Ignoring the graph's own input makes `graphify update` report *"No code files
+found"* and write a graph with zero programs — the same empty-graph symptom as a
+missing parser, from the opposite cause. `run.sh` refreshes this copy from the
+`gh`-downloaded `carddemo/` on every build, so the two stay identical.
 
 ## Other files
 

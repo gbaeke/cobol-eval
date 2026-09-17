@@ -13,11 +13,14 @@ node_modules/
 __pycache__/
 *.py[cod]
 
-# Downloaded corpora (run.sh step 3 fetches these from aws-samples).
+# run.sh step 3 re-fetches this working copy from aws-samples.
 /carddemo/cbl/
 /carddemo/cpy/
-/carddemo-graph/cbl/
-/carddemo-graph/cpy/
+
+# NOT ignored: carddemo-graph/{cbl,cpy}. graphify reads .gitignore when it
+# walks a tree, and only makes an exception for paths in git's index — so
+# ignoring the graph's own input silently yields "No code files found" and a
+# graph with zero programs in it. Tracked on purpose. Apache-2.0, see README.
 
 # Generated: grammar sources pulled from upstream, compiled parsers, graph output.
 /cobol/src/

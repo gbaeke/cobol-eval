@@ -49,14 +49,25 @@ fi
 if [ ! -f spantree/src/parser.c ]; then
   cd spantree
   [ -d node_modules/tree-sitter-cli ] || { log "installing tree-sitter-cli"; npm install --silent tree-sitter-cli@0.25.9 >>../gen.log 2>&1; }
-  log "generating spantree parser (capped 2.5G, niced)"
+  AVAIL=$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)
+  [ "${AVAIL:-0}" -lt 2500 ] && log "warning: ${AVAIL}MB available, generate wants ~2500MB"
+  log "generating spantree parser (niced; ~2.5G, several minutes)"
   # oom_score_adj=1000 makes the kernel pick THIS process first under pressure,
   # without capping its address space (ulimit -v kills the Rust CLI instantly).
   ( echo 1000 > /proc/self/oom_score_adj; exec nice -n 19 npx tree-sitter generate ) >>../gen.log 2>&1
   rc=$?
   cd ..
   log "generate exit=$rc"
-  [ -f spantree/src/parser.c ] || { log "FAILED: no parser.c"; exit 1; }
+  # Trust the artifact, not rc: npx returns 0 even when the kernel SIGKILLs the
+  # Rust binary under memory pressure, and generate writes grammar.json before
+  # the table build that actually needs the memory. So "exit=0 but no parser.c"
+  # is the OOM signature, not a tree-sitter bug.
+  if [ ! -f spantree/src/parser.c ]; then
+    log "FAILED: generate wrote no parser.c (had ${AVAIL}MB available)."
+    [ -f spantree/src/grammar.json ] && log "        grammar.json exists, so it died during the table build — out of memory."
+    log "        Free ~2.5GB (check swap too) and re-run; this script resumes here."
+    exit 1
+  fi
 fi
 log "parser.c = $(stat -c%s spantree/src/parser.c) bytes"
 
