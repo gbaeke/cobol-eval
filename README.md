@@ -1,9 +1,29 @@
 # cobol-eval
 
-Comparison of two tree-sitter COBOL grammars against the AWS CardDemo corpus,
-plus a small web app for browsing the resulting knowledge graph.
+A COBOL extractor for [graphify](https://github.com/Graphify-Labs/graphify),
+which has no COBOL support upstream, plus the grammar evaluation that chose the
+parser underneath it and a web app for exploring the graph it produces.
 
-The grammars under test:
+The pipeline, end to end:
+
+```
+spantree grammar.js  ->  generated parser.c  ->  pywheel/  ->  tree_sitter_cobol
+                                                                    |
+                              extensions/graphify-cobol/  <---------+
+                                        |  (installed into a graphify checkout)
+                                        v
+                          AWS CardDemo  ->  graph.json  ->  webapp/
+```
+
+`extensions/graphify-cobol/` is the deliverable: a 251-line extractor that turns
+COBOL into programs, paragraphs, `PERFORM`/`CALL` edges, `EXEC CICS XCTL`/`LINK`
+control transfers, `COPY` includes and VSAM file assignments. On CardDemo it
+yields 456 nodes across 31 programs and 30 copybooks.
+
+## Choosing the parser
+
+That extractor needs a grammar that can actually parse enterprise COBOL, which
+is what the comparison here settled. The grammars under test:
 
 - **yutaro** — [yutaro-sakamoto/tree-sitter-cobol](https://github.com/yutaro-sakamoto/tree-sitter-cobol), compiled from published `src/parser.c`.
 - **spantree** — [Spantree/tree-sitter-cobol-enterprise](https://github.com/Spantree/tree-sitter-cobol-enterprise), generated from `grammar.js`.
@@ -11,14 +31,21 @@ The grammars under test:
 `compare.py` parses every CardDemo file with both and reports the percentage of
 each file covered by `ERROR` nodes. Current numbers are in `results.txt`:
 spantree parses all 61 files cleanly; yutaro errors on every CICS file and
-every copybook.
+every copybook — 74.5% of the average CICS file lands inside an `ERROR` node.
+Hence spantree, packaged by `pywheel/`.
 
 ## What's in the repo, and what isn't
 
 Only hand-written sources are tracked. Everything else — the Node toolchain,
-virtualenvs, the downloaded corpus, generated parsers, the compiled `.so`s, the
-graph output, and the two upstream clones (`spantree/`, `gf/`) — is gitignored
-and rebuilt by `run.sh`. A fresh clone is ~100 KB; a fully built tree is ~600 MB.
+virtualenvs, the downloaded corpus, generated parsers, the compiled `.so`s and
+the graph output — is gitignored and rebuilt by `run.sh`. A fresh clone is
+~130 KB; a fully built tree is ~600 MB.
+
+The two upstream clones are ignored too, because each carries its own `.git` and
+git would treat it as a submodule rather than as files. Our changes to graphify
+therefore live in `extensions/graphify-cobol/` as the extractor plus a wiring
+patch, and `run.sh` reapplies them to a fresh clone. Nothing in this repo
+modifies spantree — its local diff is npm and build artifacts only.
 
 ## Prerequisites
 
@@ -29,8 +56,8 @@ and rebuilt by `run.sh`. A fresh clone is ~100 KB; a fully built tree is ~600 MB
 - **~3 GB free RAM.** Generating the spantree parser from `grammar.js` is the
   memory hog; `run.sh` nices it and sets `oom_score_adj=1000` so the kernel kills
   that step rather than your shell. It takes several minutes.
-- Optional, for the graph and web app: `graphify` (`pip install graphifyy`, or
-  have `uvx` on PATH and `run.sh` will fetch it on demand)
+- Nothing extra for graphify: `run.sh` clones it, installs our extractor into
+  the checkout, and builds a `.venv-graphify` holding it alongside the parser.
 
 ## Build and run the comparison
 
@@ -68,12 +95,18 @@ Other knobs: `GATEWAY_MODEL` (default `anthropic-prod/fast`), `GRAPH_PATH`,
 | `compare.py` | the ERROR-coverage comparison that writes `results.txt` |
 | `cobol.py` | shared parsing/query helpers over the two grammars |
 | `shapes.py`, `shapes2.py`, `shapes3.py`, `ast_survey.py` | one-off AST shape surveys used while reading the grammars |
-| `pywheel/` | packages the spantree grammar as a Python extension |
+| `pywheel/` | packages the spantree grammar as the `tree_sitter_cobol` module the extractor imports |
+| `extensions/graphify-cobol/` | the COBOL extractor and its wiring patch, with its own README |
 
-`pywheel` builds against a generated parser that isn't tracked. After `run.sh`
-has produced one:
+`run.sh` builds and installs `pywheel` for you (step 8c–8d), copying the
+generated parser out of `spantree/src` first. To install it standalone:
 
 ```bash
 cp -r spantree/src pywheel/src
-cd pywheel && pip install .
+pip install ./pywheel
 ```
+
+Watch for the silent failure mode: if `tree_sitter_cobol` isn't importable, the
+extractor returns zero nodes rather than raising, and you get a graph of bare
+file nodes with no programs in it. Step 8f fails the build on exactly that,
+counting `program` nodes rather than total nodes.

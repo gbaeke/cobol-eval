@@ -1,0 +1,59 @@
+diff --git a/graphify/detect.py b/graphify/detect.py
+index 287b0f4..caaaab2 100644
+--- a/graphify/detect.py
++++ b/graphify/detect.py
+@@ -41,7 +41,7 @@ _MANIFEST_PATH = str(out_path("manifest.json"))
+ _MTIME_COARSE_S = 2.0
+ _MTIME_SUBSECOND_S = 0.05
+ 
+-CODE_EXTENSIONS = {'.py', '.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.ejs', '.ets', '.go', '.rs', '.java', '.groovy', '.gradle', '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp', '.cu', '.cuh', '.metal', '.rb', '.rake', '.swift', '.kt', '.kts', '.cs', '.scala', '.php', '.lua', '.luau', '.toc', '.zig', '.ps1', '.psm1', '.psd1', '.ex', '.exs', '.m', '.mm', '.ml', '.mli', '.jl', '.vue', '.svelte', '.astro', '.dart', '.v', '.sv', '.svh', '.sql', '.r', '.f', '.F', '.f90', '.F90', '.f95', '.F95', '.f03', '.F03', '.f08', '.F08', '.pas', '.pp', '.dpr', '.dpk', '.lpr', '.inc', '.dfm', '.lfm', '.lpk', '.sh', '.bash', '.json', '.tf', '.tfvars', '.hcl', '.dm', '.dme', '.dmi', '.dmm', '.dmf', '.sln', '.slnx', '.csproj', '.fsproj', '.vbproj', '.xaml', '.razor', '.cshtml', '.cls', '.trigger', '.lisp', '.cl', '.lsp', '.asd', '.robot', '.resource'}
++CODE_EXTENSIONS = {'.py', '.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.ejs', '.ets', '.go', '.rs', '.java', '.groovy', '.gradle', '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp', '.cu', '.cuh', '.metal', '.rb', '.rake', '.swift', '.kt', '.kts', '.cs', '.scala', '.php', '.lua', '.luau', '.toc', '.zig', '.ps1', '.psm1', '.psd1', '.ex', '.exs', '.m', '.mm', '.ml', '.mli', '.jl', '.vue', '.svelte', '.astro', '.dart', '.v', '.sv', '.svh', '.sql', '.r', '.cbl', '.CBL', '.cob', '.COB', '.cpy', '.CPY', '.cobol', '.f', '.F', '.f90', '.F90', '.f95', '.F95', '.f03', '.F03', '.f08', '.F08', '.pas', '.pp', '.dpr', '.dpk', '.lpr', '.inc', '.dfm', '.lfm', '.lpk', '.sh', '.bash', '.json', '.tf', '.tfvars', '.hcl', '.dm', '.dme', '.dmi', '.dmm', '.dmf', '.sln', '.slnx', '.csproj', '.fsproj', '.vbproj', '.xaml', '.razor', '.cshtml', '.cls', '.trigger', '.lisp', '.cl', '.lsp', '.asd', '.robot', '.resource'}
+ DOC_EXTENSIONS = {'.md', '.mdx', '.qmd', '.skill', '.txt', '.rst', '.html', '.yaml', '.yml'}
+ PAPER_EXTENSIONS = {'.pdf'}
+ IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'}
+diff --git a/graphify/extract.py b/graphify/extract.py
+index 90a6ab0..ca7ee69 100644
+--- a/graphify/extract.py
++++ b/graphify/extract.py
+@@ -44,6 +44,7 @@ from graphify.extractors.csharp import (
+ from graphify.extractors.dart import extract_dart  # noqa: F401
+ from graphify.extractors.dm import extract_dm, extract_dmf, extract_dmi, extract_dmm  # noqa: F401
+ from graphify.extractors.elixir import extract_elixir  # noqa: F401
++from graphify.extractors.cobol import extract_cobol  # noqa: F401
+ from graphify.extractors.fortran import _cpp_preprocess, extract_fortran  # noqa: F401
+ from graphify.extractors.go import _GO_PREDECLARED_FUNCS, extract_go  # noqa: F401
+ from graphify.extractors.json_config import extract_json  # noqa: F401
+@@ -5859,6 +5860,13 @@ _DISPATCH: dict[str, Any] = {
+     ".m": extract_objc,
+     ".mm": extract_objc,
+     ".jl": extract_julia,
++    ".cbl": extract_cobol,
++    ".CBL": extract_cobol,
++    ".cob": extract_cobol,
++    ".COB": extract_cobol,
++    ".cpy": extract_cobol,
++    ".CPY": extract_cobol,
++    ".cobol": extract_cobol,
+     ".f": extract_fortran,
+     ".F": extract_fortran,
+     ".f90": extract_fortran,
+diff --git a/graphify/extractors/__init__.py b/graphify/extractors/__init__.py
+index 68ff334..a40bcf6 100644
+--- a/graphify/extractors/__init__.py
++++ b/graphify/extractors/__init__.py
+@@ -13,6 +13,7 @@ from typing import Callable
+ from graphify.extractors.apex import extract_apex
+ from graphify.extractors.bash import extract_bash
+ from graphify.extractors.blade import extract_blade
++from graphify.extractors.cobol import extract_cobol
+ from graphify.extractors.commonlisp import extract_commonlisp
+ from graphify.extractors.dart import extract_dart
+ from graphify.extractors.dm import extract_dm, extract_dmf, extract_dmi, extract_dmm
+@@ -38,6 +39,7 @@ LANGUAGE_EXTRACTORS: dict[str, Callable[[Path], dict]] = {
+     "apex": extract_apex,
+     "bash": extract_bash,
+     "blade": extract_blade,
++    "cobol": extract_cobol,
+     "commonlisp": extract_commonlisp,
+     "dart": extract_dart,
+     "delphi_form": extract_delphi_form,

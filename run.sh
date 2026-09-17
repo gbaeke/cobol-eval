@@ -73,20 +73,44 @@ log "running comparison"
 log "done -> results.txt"
 tail -12 results.txt
 
-# 8. knowledge graph for the webapp (optional; skipped if graphify is absent).
-#    `update` re-extracts without an LLM, so no API key is needed here.
+# 8. COBOL knowledge graph — the actual point of this repo.
+#    graphify has no COBOL extractor upstream, so this installs ours
+#    (extensions/graphify-cobol) plus the parser it imports, then builds the
+#    graph the webapp browses. `update` re-extracts without an LLM: no API key.
 if [ ! -s carddemo-graph/graphify-out/graph.json ]; then
-  GRAPHIFY=""
-  command -v graphify >/dev/null && GRAPHIFY="graphify"
-  [ -z "$GRAPHIFY" ] && command -v uvx >/dev/null && GRAPHIFY="uvx --from graphifyy graphify"
-  if [ -n "$GRAPHIFY" ]; then
-    log "building carddemo graph"
-    mkdir -p carddemo-graph
-    cp -n carddemo/cbl/* carddemo-graph/cbl/ 2>/dev/null || { mkdir -p carddemo-graph/cbl && cp carddemo/cbl/* carddemo-graph/cbl/; }
-    cp -n carddemo/cpy/* carddemo-graph/cpy/ 2>/dev/null || { mkdir -p carddemo-graph/cpy && cp carddemo/cpy/* carddemo-graph/cpy/; }
-    $GRAPHIFY update carddemo-graph --no-cluster >>gen.log 2>&1
-    log "graph -> carddemo-graph/graphify-out/graph.json"
-  else
-    log "skipping graph: install graphify (pip install graphifyy) for the webapp"
+  # 8a. graphify checkout
+  [ -d gf ] || { log "cloning graphify"; git clone --depth 1 -q https://github.com/Graphify-Labs/graphify.git gf; }
+
+  # 8b. our COBOL extractor, wired into graphify's dispatch tables
+  log "installing COBOL extractor into graphify"
+  extensions/graphify-cobol/install.sh "$ROOT/gf" || exit 1
+
+  # 8c. the parser that extractor imports. Without it the extractor returns
+  #     zero nodes with an error string, i.e. an EMPTY graph, not a crash.
+  [ -d pywheel/src ] || cp -r spantree/src pywheel/src
+
+  # 8d. one venv holding graphify (from the patched checkout) + the parser
+  if [ ! -x .venv-graphify/bin/python ]; then
+    log "creating graphify venv"
+    uv venv -q .venv-graphify
+    VIRTUAL_ENV=.venv-graphify uv pip install -q -e ./gf ./pywheel || exit 1
   fi
+
+  # 8e. build it
+  log "building carddemo graph (several minutes)"
+  mkdir -p carddemo-graph/cbl carddemo-graph/cpy
+  cp carddemo/cbl/* carddemo-graph/cbl/
+  cp carddemo/cpy/* carddemo-graph/cpy/
+  .venv-graphify/bin/python -m graphify update carddemo-graph --no-cluster >>gen.log 2>&1
+
+  # 8f. Count PROGRAM nodes, not all nodes: graphify emits a node per file
+  #     regardless, so a total count still looks healthy when the extractor
+  #     silently returned nothing. Programs exist only if it actually parsed.
+  N=$(.venv-graphify/bin/python -c "import json; g=json.load(open('carddemo-graph/graphify-out/graph.json')); print(sum(1 for n in g.get('nodes',[]) if n.get('kind')=='program'))" 2>/dev/null || echo 0)
+  if [ "${N:-0}" -lt 25 ]; then
+    log "FAILED: only $N program nodes (expected 31) — is tree_sitter_cobol"
+    log "        importable in .venv-graphify? see gen.log"
+    exit 1
+  fi
+  log "graph = $N programs -> carddemo-graph/graphify-out/graph.json"
 fi

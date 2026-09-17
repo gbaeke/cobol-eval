@@ -1,6 +1,7 @@
-# Third-party clones with their own history. run.sh re-clones spantree;
-# gf is https://github.com/Graphify-Labs/graphify. Not submodules on purpose —
-# nothing here modifies them.
+# Upstream clones. Both carry their own .git, so git would treat them as
+# submodules rather than files — our changes to graphify live in
+# extensions/graphify-cobol/ instead, and run.sh reapplies them to a fresh
+# clone. spantree's local diff is only npm/build artifacts.
 /spantree/
 /gf/
 
@@ -8,6 +9,7 @@
 /node-v22.14.0-linux-x64/
 node_modules/
 .venv/
+.venv-graphify/
 __pycache__/
 *.py[cod]
 
