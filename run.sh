@@ -2,8 +2,9 @@
 # Idempotent, resumable COBOL grammar comparison. Safe to re-run; each step
 # is skipped if its output already exists.
 set -u
-cd /home/azureuser/cobol-eval
-export PATH=/home/azureuser/cobol-eval/node-v22.14.0-linux-x64/bin:$PATH
+cd "$(dirname "$(readlink -f "$0")")"
+ROOT=$PWD
+export PATH="$ROOT/node-v22.14.0-linux-x64/bin:$PATH"
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 
 # 1. node
@@ -71,3 +72,21 @@ log "running comparison"
 .venv/bin/python compare.py > results.txt 2>compare.err
 log "done -> results.txt"
 tail -12 results.txt
+
+# 8. knowledge graph for the webapp (optional; skipped if graphify is absent).
+#    `update` re-extracts without an LLM, so no API key is needed here.
+if [ ! -s carddemo-graph/graphify-out/graph.json ]; then
+  GRAPHIFY=""
+  command -v graphify >/dev/null && GRAPHIFY="graphify"
+  [ -z "$GRAPHIFY" ] && command -v uvx >/dev/null && GRAPHIFY="uvx --from graphifyy graphify"
+  if [ -n "$GRAPHIFY" ]; then
+    log "building carddemo graph"
+    mkdir -p carddemo-graph
+    cp -n carddemo/cbl/* carddemo-graph/cbl/ 2>/dev/null || { mkdir -p carddemo-graph/cbl && cp carddemo/cbl/* carddemo-graph/cbl/; }
+    cp -n carddemo/cpy/* carddemo-graph/cpy/ 2>/dev/null || { mkdir -p carddemo-graph/cpy && cp carddemo/cpy/* carddemo-graph/cpy/; }
+    $GRAPHIFY update carddemo-graph --no-cluster >>gen.log 2>&1
+    log "graph -> carddemo-graph/graphify-out/graph.json"
+  else
+    log "skipping graph: install graphify (pip install graphifyy) for the webapp"
+  fi
+fi

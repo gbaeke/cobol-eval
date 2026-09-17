@@ -17,8 +17,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
 GRAPH_PATH = Path(os.environ.get(
-    "GRAPH_PATH", "/home/azureuser/cobol-eval/carddemo-graph/graphify-out/graph.json"))
+    "GRAPH_PATH", str(REPO_ROOT / "carddemo-graph/graphify-out/graph.json")))
 GATEWAY_URL = os.environ.get("GATEWAY_URL", "http://localhost:4000")
 GATEWAY_MODEL = os.environ.get("GATEWAY_MODEL", "anthropic-prod/fast")
 AGENTGATEWAY_CONFIG = Path(os.environ.get(
