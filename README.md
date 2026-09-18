@@ -151,6 +151,35 @@ found"* and write a graph with zero programs — the same empty-graph symptom as
 missing parser, from the opposite cause. `run.sh` refreshes this copy from the
 `gh`-downloaded `carddemo/` on every build, so the two stay identical.
 
+### The screens
+
+CardDemo is a CICS 3270 application, so its 17 screens are **BMS maps**, not
+COBOL `SCREEN SECTION` code — there is no `SCREEN SECTION` anywhere in the
+corpus. `carddemo/bms/` holds the 17 `.bms` map sources and
+`carddemo/cpy-bms/` the 17 symbolic-map copybooks that the BMS macro assembler
+generates from them (`TYPE=DSECT`); both are from the same upstream repo,
+Apache-2.0, unmodified. They are tracked, not fetched by `run.sh`.
+
+A `.bms` file is the layout: `DFHMSD` opens a mapset, `DFHMDI` declares one
+24x80 screen, and a `DFHMDF` per field pins it with `POS=(row,col)`, `LENGTH`
+and `ATTRB`. The generated copybook is what the programs actually `COPY` — for
+a field `OPTION` it defines `OPTIONL`/`OPTIONF`/`OPTIONA`/`OPTIONI`, and lays
+the whole record down twice (`01 COMEN1AI.` and `01 COMEN1AO REDEFINES
+COMEN1AI.`), which is why the programs qualify everything as
+`OPTIONI OF COMEN1AI`.
+
+These are worth having checked in for two reasons. Without the copybooks the
+`cbl/` sources do not compile — `COPY COMEN01` has nothing to resolve — and
+without the `.bms` the field coordinates exist nowhere in the tree, so the
+screens can only be guessed at. The only `COPY` targets still unresolved are
+`DFHAID`, `DFHATTR` and `DFHBMSCA`, which ship with CICS itself (`SDFHCOB`)
+rather than with the application.
+
+They are deliberately kept out of `carddemo/cpy/`. That directory is what
+`run.sh` copies into `carddemo-graph/cpy/` to build the graph, and adding 17
+copybooks to it would move the 61-file count, the program count and the
+`compare.py` percentages quoted above.
+
 ## Other files
 
 | File | What it does |

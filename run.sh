@@ -25,7 +25,8 @@ if [ ! -f cobol/cobol.so ]; then
   gcc -O0 -fPIC -shared -Icobol/src cobol/src/parser.c cobol/src/scanner.c -o cobol/cobol.so || exit 1
 fi
 
-# 3. CardDemo corpus
+# 3. CardDemo corpus. Only cbl/ and cpy/ are fetched; carddemo/{bms,cpy-bms}
+# are tracked in git, and must NOT be copied into cpy/ (see .gitignore).
 if [ ! -d carddemo/cbl ] || [ "$(ls carddemo/cbl 2>/dev/null | wc -l)" -lt 31 ]; then
   log "downloading CardDemo corpus"
   mkdir -p carddemo/cbl carddemo/cpy

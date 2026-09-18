@@ -17,6 +17,13 @@ __pycache__/
 /carddemo/cbl/
 /carddemo/cpy/
 
+# NOT ignored: carddemo/{bms,cpy-bms}. The 17 BMS screen maps and their
+# generated symbolic-map copybooks, tracked rather than fetched because nothing
+# in run.sh needs them and they are what makes the CICS screens readable.
+# Deliberately NOT merged into carddemo/cpy/ — that directory is the graph's
+# input, and 17 extra copybooks there would quietly move every count and
+# percentage the README quotes.
+
 # NOT ignored: carddemo-graph/{cbl,cpy}. graphify reads .gitignore when it
 # walks a tree, and only makes an exception for paths in git's index — so
 # ignoring the graph's own input silently yields "No code files found" and a
