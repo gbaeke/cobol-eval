@@ -13,7 +13,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -237,18 +237,49 @@ class Investigate(BaseModel):
 @app.post("/api/investigate")
 async def investigate(body: Investigate):
     """Agent mode: the model drives, reading real COBOL through function tools.
-    Slower and costlier than /api/ask — use it for behaviour, not structure."""
+    Slower and costlier than /api/ask — use it for behaviour, not structure.
+
+    The harness is LangChain deepagents (`cobol_deep_agent`), which plans with a
+    todo list and can hand a long call chain to a subagent; the tools it drives
+    are in `cobol_tools`."""
     if not GATEWAY_API_KEY:
         raise HTTPException(503, f"No gateway key: set GATEWAY_API_KEY, or keep one in {AGENTGATEWAY_CONFIG}.")
-    import cobol_agent
-    cobol_agent.configure(G, CORPUS_ROOT)
+    import cobol_deep_agent
+    cobol_deep_agent.configure(G, CORPUS_ROOT)
     try:
-        out = await cobol_agent.investigate(
+        out = await cobol_deep_agent.investigate(
             body.question, GATEWAY_URL, body.model or GATEWAY_MODEL, GATEWAY_API_KEY)
     except Exception as e:
         raise HTTPException(502, f"agent failed: {type(e).__name__}: {e}")
     return {"answer": out["answer"], "trace": out["trace"],
-            "model": body.model or GATEWAY_MODEL, "mode": "agent"}
+            "todos": out.get("todos", []),
+            "model": body.model or GATEWAY_MODEL, "mode": "agent", "engine": "deepagents"}
+
+
+@app.post("/api/investigate/stream")
+async def investigate_stream(body: Investigate):
+    """The same investigation, streamed as SSE so the UI can show the plan being
+    written and worked through rather than only its finished state."""
+    if not GATEWAY_API_KEY:
+        raise HTTPException(503, f"No gateway key: set GATEWAY_API_KEY, or keep one in {AGENTGATEWAY_CONFIG}.")
+    import cobol_deep_agent
+    cobol_deep_agent.configure(G, CORPUS_ROOT)
+
+    async def events():
+        try:
+            async for ev in cobol_deep_agent.investigate_stream(
+                    body.question, GATEWAY_URL, body.model or GATEWAY_MODEL, GATEWAY_API_KEY):
+                if ev.get("type") == "answer":
+                    ev = {**ev, "model": body.model or GATEWAY_MODEL,
+                          "mode": "agent", "engine": "deepagents"}
+                yield f"data: {json.dumps(ev)}\n\n"
+        except Exception as e:                      # the stream is already open, so
+            yield "data: " + json.dumps({           # the error has to travel in it
+                "type": "error", "error": f"{type(e).__name__}: {e}"}) + "\n\n"
+
+    return StreamingResponse(events(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache",
+                                      "X-Accel-Buffering": "no"})
 
 
 @app.get("/api/stats")

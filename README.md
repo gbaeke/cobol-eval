@@ -106,7 +106,36 @@ unset, `app.py` falls back to reading the key from
 line, where `ps` would show it. No credentials live in this repo.
 
 Other knobs: `GATEWAY_MODEL` (default `anthropic-prod/fast`), `GRAPH_PATH`,
-`HOST`, `PORT`.
+`CORPUS_ROOT`, `HOST` (`0.0.0.0` to reach it from another machine), `PORT`.
+
+### Ask, and Dig deeper
+
+Two ways to question the code, and they work differently:
+
+**Ask** (`/api/ask`) is one LLM call. `app.py` pulls the relevant slice of the
+graph into the prompt and the model answers from those facts. Fast, and right
+about structure — who calls whom, what a change would touch.
+
+**Dig deeper** (`/api/investigate`) is an agent that reads the COBOL itself,
+because the graph knows the call edges and nothing about what the code computes.
+It lives in two modules:
+
+| File | What it holds |
+|---|---|
+| `cobol_tools.py` | the six tools — `find_symbol`, `dependencies`, `read_paragraph`, `read_lines`, `read_comments`, `grep_cobol` — and the fixed-form handling that strips sequence numbers and comments before the model sees a line |
+| `cobol_deep_agent.py` | the harness: [deepagents](https://docs.langchain.com/oss/python/deepagents/overview) over a `ChatOpenAI` pointed at the gateway |
+
+The harness gives the agent a todo list (`TodoListMiddleware`, which is *not* in
+the default stack), a `tracer` subagent for following a long PERFORM/CALL chain
+without dragging every intermediate listing back into the main context, and a
+filesystem rooted at `carddemo-graph/`. That last one is not cosmetic: the
+default `StateBackend` is an empty scratchpad, so an agent that reaches for `ls`
+or `read_file` first — they do — finds nothing and reports it cannot access the
+COBOL. Writes are denied, and no shell tool is configured; `execute` needs a
+sandbox or `LocalShellBackend`, and neither is used.
+
+`/api/investigate/stream` runs the same thing as SSE, which is what the UI uses,
+so the plan appears as the agent writes it and each item ticks off as it goes.
 
 ## The corpus
 

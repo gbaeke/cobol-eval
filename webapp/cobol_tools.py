@@ -1,4 +1,8 @@
-"""Investigation agent: graph tools for navigation, source tools for behaviour.
+"""COBOL investigation tools: the graph for structure, the source for behaviour.
+
+Harness-neutral on purpose: these are plain functions, and `cobol_deep_agent`
+wraps them for LangChain deepagents. Keeping the COBOL knowledge out of the
+agent module is what made swapping the harness a one-file change.
 
 The graph answers "who calls whom"; only the source answers "what does it compute".
 Every source tool is anchored by graph coordinates, so the agent reads the right
@@ -14,9 +18,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from agents import Agent, ModelSettings, OpenAIChatCompletionsModel, Runner, function_tool, set_tracing_disabled
-from openai import AsyncOpenAI
-
 _G = None          # graph, injected by app.py
 _ROOT = Path(".")  # corpus root, injected by app.py
 TRACE: list[dict] = []
@@ -25,6 +26,11 @@ TRACE: list[dict] = []
 def configure(graph, corpus_root: Path) -> None:
     global _G, _ROOT
     _G, _ROOT = graph, Path(corpus_root)
+
+
+def corpus_root() -> Path:
+    """Where the COBOL actually lives, as configured by app.py."""
+    return _ROOT
 
 
 def _trace(tool: str, **kw) -> None:
@@ -77,7 +83,6 @@ def _slice(file: str, start: int, end: int, keep_comments: bool = False) -> str:
 
 # ------------------------------------------------------------------ the tools
 
-@function_tool
 def find_symbol(name: str) -> str:
     """Look up a COBOL program, copybook or paragraph by name. Returns each match
     with its kind and the file it lives in. Use this first when a name is unfamiliar."""
@@ -89,7 +94,6 @@ def find_symbol(name: str) -> str:
                      f'{h.get("source_location","")}' for h in hits)
 
 
-@function_tool
 def dependencies(name: str) -> str:
     """What a program/paragraph depends on and what depends on it: PERFORM, CALL,
     EXEC CICS XCTL, COPY and dataset edges, each with file:line. Structure only —
@@ -110,7 +114,6 @@ def dependencies(name: str) -> str:
     return "\n".join(lines)
 
 
-@function_tool
 def read_paragraph(program: str, paragraph: str) -> str:
     """Read the actual COBOL source of one paragraph, comments stripped and
     sequence numbers removed. This is how you find out what the code DOES —
@@ -140,7 +143,6 @@ def read_paragraph(program: str, paragraph: str) -> str:
             + ", ".join(p[0] for p in paras[:40]))
 
 
-@function_tool
 def read_lines(file: str, start: int, end: int) -> str:
     """Read a line range of a source file (comments stripped). Use it to follow a
     file:line citation from the graph, or to read a program's opening DIVISIONs.
@@ -149,7 +151,6 @@ def read_lines(file: str, start: int, end: int) -> str:
     return _slice(file, start, min(end, start + 300))
 
 
-@function_tool
 def read_comments(file: str, start: int, end: int) -> str:
     """Read a line range INCLUDING comment lines. COBOL programs usually carry a
     header comment block stating what the program is for — read lines 1-30 of a
@@ -158,7 +159,6 @@ def read_comments(file: str, start: int, end: int) -> str:
     return _slice(file, start, min(end, start + 120), keep_comments=True)
 
 
-@function_tool
 def grep_cobol(pattern: str, file_filter: str = "") -> str:
     """Search the code area of every COBOL source for a regex (case-insensitive),
     skipping comments and sequence numbers. Use it for what the graph does NOT
@@ -186,7 +186,7 @@ def grep_cobol(pattern: str, file_filter: str = "") -> str:
     return "\n".join(out) or f"no matches for {pattern}"
 
 
-TOOLS = [find_symbol, dependencies, read_paragraph, read_lines, read_comments, grep_cobol]
+TOOL_FUNCTIONS = [find_symbol, dependencies, read_paragraph, read_lines, read_comments, grep_cobol]
 
 INSTRUCTIONS = """You investigate a legacy COBOL system for a developer who has never read COBOL.
 
@@ -209,21 +209,7 @@ COBOL for a newcomer, explain as you go:
 - A dataset is a VSAM file. PIC clauses declare field types; S9(10)V99 is a signed
   decimal with 2 places.
 
-Cite file:line for every specific claim. Lead with the answer. Be concrete and brief;
-quote the COBOL line that settles a point rather than describing it vaguely."""
-
-
-async def investigate(question: str, base_url: str, model: str, api_key: str,
-                      max_turns: int = 12) -> dict:
-    TRACE.clear()
-    set_tracing_disabled(True)
-    client = AsyncOpenAI(base_url=f"{base_url.rstrip('/')}/v1", api_key=api_key)
-    agent = Agent(
-        name="cobol-investigator",
-        instructions=INSTRUCTIONS,
-        model=OpenAIChatCompletionsModel(model=model, openai_client=client),
-        model_settings=ModelSettings(temperature=0.1),
-        tools=TOOLS,
-    )
-    result = await Runner.run(agent, question, max_turns=max_turns)
-    return {"answer": result.final_output, "trace": list(TRACE)}
+Cite file:line for every specific claim. Lead with the answer. Answer in Markdown:
+`##` headings when the answer has parts, `-` bullets, and backticks around COBOL
+names and lines. Be concrete and brief; quote the COBOL line that settles a point
+rather than describing it vaguely."""

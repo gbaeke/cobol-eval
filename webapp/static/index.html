@@ -76,8 +76,47 @@ button.go.alt{background:transparent;color:var(--accent);border:1px solid var(--
 #trace div{padding-left:14px;text-indent:-14px}
 select{font:12px var(--mono);background:var(--panel);color:var(--ink);
   border:1px solid var(--line);border-radius:6px;padding:8px}
-#answer{margin-top:14px;white-space:pre-wrap;font:14.5px/1.62 var(--sans)}
+#answer{margin-top:14px;font:14.5px/1.62 var(--sans)}
 #answer code,#answer .cite{font:12.5px var(--mono);color:var(--ink-2)}
+#answer p{margin:0 0 10px}
+#answer h1,#answer h2,#answer h3{margin:16px 0 8px;font-weight:600;line-height:1.3}
+#answer h1{font-size:17px} #answer h2{font-size:15.5px} #answer h3{font-size:14px;color:var(--ink-2)}
+#answer ul,#answer ol{margin:0 0 10px;padding-left:20px}
+#answer li{margin:3px 0}
+#answer li>ul,#answer li>ol{margin:3px 0}
+#answer pre{margin:0 0 10px;padding:10px 12px;overflow-x:auto;background:var(--panel);
+  border:1px solid var(--line);border-radius:6px}
+#answer pre code{font:12px/1.55 var(--mono);color:var(--ink-2);white-space:pre;background:none;padding:0}
+#answer code{background:var(--panel);border-radius:4px;padding:1px 4px}
+#answer blockquote{margin:0 0 10px;padding-left:12px;border-left:2px solid var(--line);color:var(--ink-2)}
+#answer table{border-collapse:collapse;margin:0 0 10px;font-size:13px}
+#answer th,#answer td{border:1px solid var(--line);padding:4px 9px;text-align:left}
+#answer hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+#answer a{color:var(--ink);text-decoration:underline}
+#answer>:first-child{margin-top:0}
+#trace .builtin{color:var(--ink-3);opacity:.72}
+#plan{margin-top:12px;border:1px solid var(--line);border-radius:8px;padding:10px 12px;
+  background:var(--panel);display:none}
+#plan.on{display:block}
+#plan h4{margin:0 0 7px;font:11px var(--mono);color:var(--ink-3);font-weight:400;
+  text-transform:uppercase;letter-spacing:.09em}
+#plan h4 .count{color:var(--ink-2)}
+#plan ol{margin:0;padding:0;list-style:none;font:12.5px/1.6 var(--sans)}
+#plan li{display:flex;gap:8px;align-items:flex-start;padding:2px 0;color:var(--ink-2)}
+#plan li .box{flex:none;width:13px;font:11px var(--mono);color:var(--ink-3);text-align:center}
+#plan li.done{color:var(--ink-3)}
+#plan li.done .txt{text-decoration:line-through;opacity:.62}
+#plan li.done .box{color:var(--ok,#5aa469)}
+#plan li.now{color:var(--ink)}
+#plan li.now .box{color:var(--ink)}
+#plan li.now .txt{font-weight:600}
+#plan .bar{margin-top:9px;height:2px;background:var(--line);border-radius:2px;overflow:hidden}
+#plan .bar i{display:block;height:100%;background:var(--ink-2);width:0;
+  transition:width .35s ease}
+@keyframes blink{50%{opacity:.35}}
+#plan li.now .box{animation:blink 1.1s ease-in-out infinite}
+#trace .builtin{color:var(--ink-3);opacity:.72}
+#trace div.live{color:var(--ink-2)}
 .meta{margin-top:10px;font:11px var(--mono);color:var(--ink-3)}
 .err{color:var(--warn);font:13px var(--sans)}
 .stat{display:flex;gap:14px;flex-wrap:wrap;font:12px var(--mono);color:var(--ink-2)}
@@ -121,6 +160,7 @@ select{font:12px var(--mono);background:var(--panel);color:var(--ink);
     </div>
     <div id="answer"></div>
     <div id="trace"></div>
+    <div id="plan"><h4>plan <span class="count"></span></h4><ol></ol><div class="bar"><i></i></div></div>
     <div class="meta" id="answerMeta"></div>
     <div class="legend">
       PERFORM = internal paragraph call · CALL = external program ·
@@ -205,29 +245,176 @@ $("#q").oninput = async (ev) => {
     el.onclick = () => openNode(el.dataset.id));
 };
 
+// ---- markdown ----------------------------------------------------------
+// The agent answers in Markdown; rendering it here is what keeps ## and **
+// off the screen. Small on purpose: headings, lists, emphasis, code, tables
+// and quotes are all the answers use, and a CDN dependency would break the
+// moment this page is opened from a host with no internet access.
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c =>
+  ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+function inline(s) {
+  const code = [];
+  s = esc(s).replace(/`([^`]+)`/g, (_, c) => "\x01" + (code.push("<code>" + c + "</code>") - 1) + "\x01");
+  s = s.replace(/\*\*\*([^*]+)\*\*\*/g, "<strong><em>$1</em></strong>")
+       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+       .replace(/(^|[^\w*])\*([^*\n]+)\*(?![\w*])/g, "$1<em>$2</em>")
+       .replace(/(^|[^\w_])_([^_\n]+)_(?![\w_])/g, "$1<em>$2</em>")
+       .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+       .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  return s.replace(/\x01(\d+)\x01/g, (_, i) => code[i]);
+}
+
+function md(text) {
+  const lines = String(text ?? "").replace(/\r\n?/g, "\n").split("\n");
+  const out = [];
+  let para = [], list = null, quote = [];
+  const flushPara = () => { if (para.length) { out.push("<p>" + inline(para.join(" ")) + "</p>"); para = []; } };
+  const flushList = () => { if (list) { out.push("</" + list + ">"); list = null; } };
+  const flushQuote = () => {
+    if (quote.length) { out.push("<blockquote>" + md(quote.join("\n")) + "</blockquote>"); quote = []; }
+  };
+  const flushAll = () => { flushPara(); flushList(); flushQuote(); };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (/^\s*```+\s*[\w+-]*\s*$/.test(line)) {          // fenced code block
+      flushAll();
+      const buf = [];
+      while (++i < lines.length && !/^\s*```+\s*$/.test(lines[i])) buf.push(lines[i]);
+      out.push("<pre><code>" + esc(buf.join("\n")) + "</code></pre>");
+      continue;
+    }
+    if (!line.trim()) { flushAll(); continue; }
+    if (/^\s*>\s?/.test(line)) { flushPara(); flushList(); quote.push(line.replace(/^\s*>\s?/, "")); continue; }
+    flushQuote();
+
+    const h = line.match(/^\s*(#{1,6})\s+(.*)$/);
+    if (h) {
+      flushAll();
+      const n = Math.min(h[1].length, 3);
+      out.push("<h" + n + ">" + inline(h[2].replace(/\s*#+\s*$/, "")) + "</h" + n + ">");
+      continue;
+    }
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { flushAll(); out.push("<hr>"); continue; }
+
+    // table: a header row followed by a |---|---| separator
+    if (/^\s*\|.*\|\s*$/.test(line) && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1] || "")) {
+      flushAll();
+      const cells = r => r.trim().replace(/^\||\|$/g, "").split("|").map(c => inline(c.trim()));
+      const head = cells(line);
+      i++;
+      const rows = [];
+      while (/^\s*\|.*\|\s*$/.test(lines[i + 1] || "")) rows.push(cells(lines[++i]));
+      out.push("<table><thead><tr>" + head.map(c => "<th>" + c + "</th>").join("") + "</tr></thead><tbody>"
+        + rows.map(r => "<tr>" + r.map(c => "<td>" + c + "</td>").join("") + "</tr>").join("")
+        + "</tbody></table>");
+      continue;
+    }
+
+    const li = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
+    if (li) {
+      const want = /^\d/.test(li[2]) ? "ol" : "ul";
+      flushPara();
+      if (list !== want) { flushList(); out.push("<" + want + ">"); list = want; }
+      out.push("<li>" + inline(li[3]) + "</li>");
+      continue;
+    }
+
+    flushList();
+    para.push(line.trim());
+  }
+  flushAll();
+  return out.join("\n");
+}
+
+// ---- the plan ----------------------------------------------------------
+// The agent keeps a todo list as it works. Showing only the finished list would
+// show every item completed, which says nothing about how it got there — so the
+// run is streamed and the list is redrawn each time it changes.
+function renderPlan(todos) {
+  const plan = $("#plan");
+  if (!todos || !todos.length) { plan.classList.remove("on"); return; }
+  plan.classList.add("on");
+  const cls = t => t.status === "completed" ? "done" : t.status === "in_progress" ? "now" : "";
+  const box = t => t.status === "completed" ? "✓" : t.status === "in_progress" ? "▸" : "○";
+  plan.querySelector("ol").innerHTML = todos.map(t =>
+    `<li class="${cls(t)}"><span class="box">${box(t)}</span>`
+    + `<span class="txt">${esc(t.content || "")}</span></li>`).join("");
+  const done = todos.filter(t => t.status === "completed").length;
+  plan.querySelector(".count").textContent = `${done}/${todos.length}`;
+  plan.querySelector(".bar i").style.width = (100 * done / todos.length) + "%";
+}
+
+function traceLine(t, live) {
+  const args = Object.entries(t).filter(([k]) => !["tool", "builtin", "type"].includes(k))
+    .map(([k, v]) => `${k}=${v}`).join(" ");
+  return `<div class="${t.builtin ? "builtin" : ""}${live ? " live" : ""}">`
+    + `→ ${esc(t.tool)}(${esc(args)})</div>`;
+}
+
+// Streamed investigation: SSE frames carry the plan, each tool call, and finally
+// the answer. Falls back to the non-streaming endpoint if the stream fails.
+async function askStreaming(q) {
+  const r = await fetch("/api/investigate/stream", {
+    method: "POST", headers: {"content-type": "application/json"},
+    body: JSON.stringify({question: q, model: $("#model").value})
+  });
+  if (!r.ok || !r.body) throw await r.json().catch(() => ({message: "stream failed"}));
+  const reader = r.body.getReader(), dec = new TextDecoder();
+  let buf = "", calls = 0, done = null;
+  for (;;) {
+    const {value, done: end} = await reader.read();
+    if (end) break;
+    buf += dec.decode(value, {stream: true});
+    const frames = buf.split("\n\n");
+    buf = frames.pop();
+    for (const f of frames) {
+      const line = f.split("\n").find(l => l.startsWith("data: "));
+      if (!line) continue;
+      const ev = JSON.parse(line.slice(6));
+      if (ev.type === "todos") renderPlan(ev.todos);
+      else if (ev.type === "tool") {
+        calls++;
+        $("#trace").insertAdjacentHTML("beforeend", traceLine(ev, true));
+        $("#answer").textContent = `Reading the COBOL… ${calls} tool call${calls > 1 ? "s" : ""}`;
+      } else if (ev.type === "error") throw {detail: ev.error};
+      else if (ev.type === "answer") done = ev;
+    }
+  }
+  if (!done) throw {detail: "the stream ended without an answer"};
+  done.trace = {length: calls};
+  return done;
+}
+
 async function ask(q, deep = false) {
   $("#question").value = q;
   $("#answer").textContent = deep ? "Reading the COBOL…" : "Thinking…";
+  renderPlan([]);
   $("#answerMeta").textContent = "";
   $("#trace").innerHTML = "";
   $("#askBtn").disabled = $("#digBtn").disabled = true;
   try {
-    const r = await fetch(deep ? "/api/investigate" : "/api/ask", {
-      method: "POST", headers: {"content-type": "application/json"},
-      body: JSON.stringify({question: q, model: $("#model").value})
-    });
-    const data = await r.json();
-    if (!r.ok) throw data;
-    $("#answer").textContent = data.answer;
-    if (data.trace) {
-      $("#trace").innerHTML = data.trace.map(t => {
-        const args = Object.entries(t).filter(([k]) => k !== "tool")
-          .map(([k, v]) => `${k}=${v}`).join(" ");
-        return `<div>→ ${t.tool}(${args})</div>`;
-      }).join("");
+    let data;
+    if (deep) {
+      data = await askStreaming(q);
+    } else {
+      const r = await fetch("/api/ask", {
+        method: "POST", headers: {"content-type": "application/json"},
+        body: JSON.stringify({question: q, model: $("#model").value})
+      });
+      data = await r.json();
+      if (!r.ok) throw data;
     }
+    $("#answer").innerHTML = md(data.answer);
+    if (data.trace && data.trace.map) {
+      $("#trace").innerHTML = data.trace.map(t => traceLine(t, false)).join("");
+    }
+    $("#trace").querySelectorAll("div").forEach(d => d.classList.remove("live"));
+    if (data.todos) renderPlan(data.todos);
     $("#answerMeta").textContent = data.mode === "agent"
-      ? `${data.model} · agent · ${data.trace.length} tool calls against the source`
+      ? `${data.model} · ${data.engine || "agent"} · ${data.trace.length} tool calls against the source`
       : `${data.model} · grounded in ${data.facts_chars} chars of graph facts`
         + (data.entities.length ? ` · matched ${data.entities.join(", ")}` : " · whole-system overview");
   } catch (e) {
