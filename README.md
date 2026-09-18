@@ -106,7 +106,25 @@ unset, `app.py` falls back to reading the key from
 line, where `ps` would show it. No credentials live in this repo.
 
 Other knobs: `GATEWAY_MODEL` (default `anthropic-prod/fast`), `GRAPH_PATH`,
-`CORPUS_ROOT`, `HOST` (`0.0.0.0` to reach it from another machine), `PORT`.
+`CORPUS_ROOT`, `BMS_ROOT`, `CBL_ROOT`, `HOST` (`0.0.0.0` to reach it from
+another machine), `PORT`.
+
+### Screens
+
+The left column lists the 17 BMS maps alongside the programs and copybooks, and
+every program that sends one gets a **Screens** section in its detail panel.
+Clicking either renders the map as the 24x80 terminal it is — phosphor on
+black, with a toggle for the real `COLOR=` attributes the map carries. Hovering
+a field reports its `POS`, `LENGTH` and `ATTRB`; the unprotected fields accept
+typing, and ENTER reports the AID and field values a real 3270 would transmit
+instead of pretending to run anything.
+
+`bms.py` parses the maps and `app.py` serves them at `/api/screens` and
+`/api/screen?name=`. None of this touches the graph: a screen is not a node, so
+the counts above cannot move. The program a map belongs to is recovered from the
+COBOL instead, by resolving each `SEND`/`RECEIVE MAP`'s mapset name — a literal
+in 12 programs, and in the other five a working-storage `LIT-THISMAPSET` that
+reaches the call through one `MOVE`.
 
 ### Ask, and Dig deeper
 
@@ -186,6 +204,7 @@ copybooks to it would move the 61-file count, the program count and the
 |---|---|
 | `compare.py` | the ERROR-coverage comparison that writes `results.txt` |
 | `cobol.py` | shared parsing/query helpers over the two grammars |
+| `bms.py` | BMS map parser — the 24x80 screen layouts, and which program sends each |
 | `shapes.py`, `shapes2.py`, `shapes3.py`, `ast_survey.py` | one-off AST shape surveys used while reading the grammars |
 | `pywheel/` | packages the spantree grammar as the `tree_sitter_cobol` module the extractor imports |
 | `vendor/spantree-parser/` | the pre-generated parser that lets a clone skip the 16-minute build, with its provenance |

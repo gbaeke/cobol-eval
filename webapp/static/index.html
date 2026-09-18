@@ -122,6 +122,54 @@ select{font:12px var(--mono);background:var(--panel);color:var(--ink);
 .stat{display:flex;gap:14px;flex-wrap:wrap;font:12px var(--mono);color:var(--ink-2)}
 .stat b{color:var(--ink);font-weight:600}
 .legend{font:11px/1.6 var(--mono);color:var(--ink-3);margin-top:12px}
+
+/* ---- screen viewer ------------------------------------------------------
+   A BMS map is a 24x80 terminal, so it gets rendered as one. Everything is
+   scoped under .crt: the phosphor palette must not leak into the page, whose
+   whole point is the opposite mood. Each field is a <span>, which keeps the
+   screen selectable text and gives every cell somewhere to hang its
+   POS/LENGTH/ATTRB readout. */
+#scrim{position:fixed;inset:0;z-index:40;display:none;place-items:center;padding:18px;
+  background:rgba(4,7,5,.84);backdrop-filter:blur(3px)}
+#scrim.on{display:grid}
+.crt{--p:#3bff7a;position:relative;max-width:min(97vw,1150px);background:#050805;
+  color:var(--p);border-radius:12px;padding:12px 22px 14px;font-family:var(--mono);
+  box-shadow:0 0 0 1px #17321f,0 26px 80px rgba(0,0,0,.72),0 0 64px rgba(59,255,122,.12)}
+.crt-bar{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+  padding:2px 2px 10px;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+.crt-bar b{font-size:12px;letter-spacing:.1em}
+.crt-bar .sp{flex:1}
+.crt-bar .mut{color:#2f8a52;text-transform:none;letter-spacing:.02em}
+.crt button{font:11px var(--mono);letter-spacing:.06em;text-transform:uppercase;
+  color:var(--p);background:transparent;border:1px solid #1d5c36;border-radius:5px;
+  padding:4px 9px;cursor:pointer}
+.crt button:hover{border-color:var(--p);box-shadow:0 0 10px rgba(59,255,122,.22)}
+.tube{position:relative;overflow:hidden;border-radius:6px;background:#040604}
+.tube pre{margin:0;padding:10px 8px;white-space:pre;outline:none;
+  font:clamp(8px,1.42vw,15px)/1.32 var(--mono);letter-spacing:.02em}
+/* currentColor in the glow is what lets one rule serve both palettes. */
+.tube pre span{text-shadow:0 0 2px currentColor,0 0 11px currentColor}
+.tube::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(transparent 0 2px,rgba(0,0,0,.34) 2px 3px)}
+.tube::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:6px;
+  box-shadow:inset 0 0 110px 26px rgba(0,0,0,.72)}
+.crt .unprot{color:#8affb4;text-decoration:underline;text-underline-offset:2px}
+/* A field the program fills at runtime is empty in the map. Ghosting its name
+   shows where it sits without inventing data the source does not contain. */
+.crt .ghost{opacity:.32}
+.crt .cur{background:var(--p);color:#041006;text-shadow:none;animation:crtblink 1.06s steps(1) infinite}
+@keyframes crtblink{50%{background:transparent;color:var(--p)}}
+.crt-status{display:flex;gap:6px 18px;align-items:baseline;flex-wrap:wrap;min-height:17px;
+  padding:9px 2px 0;font-size:11px;color:#2f8a52}
+.crt-status b{color:var(--p);font-weight:500}
+.crt-status .hint{margin-left:auto;text-align:right;flex:none;opacity:.8}
+/* 3270 colour mode: the maps carry real COLOR= attributes, so show them. */
+.crt.col .c-BLUE{color:#63d4ff} .crt.col .c-RED{color:#ff5d70}
+.crt.col .c-YELLOW{color:#ffe36a} .crt.col .c-TURQUOISE{color:#5ef0e2}
+.crt.col .c-GREEN{color:#3bff7a} .crt.col .c-NEUTRAL{color:#e9fff1}
+.crt.col .c-PINK{color:#ff8ad9}
+.crt.col .unprot{color:#c9ffdd}
+@media (prefers-reduced-motion:reduce){ .crt .cur{animation:none} }
 </style>
 </head>
 <body>
@@ -138,6 +186,8 @@ select{font:12px var(--mono);background:var(--panel);color:var(--ink);
     <div class="scroll" id="programs"></div>
     <h2 style="margin-top:18px">Copybooks</h2>
     <div class="scroll" id="copybooks"></div>
+    <h2 style="margin-top:18px">Screens</h2>
+    <div class="scroll" id="screens"></div>
   </section>
 
   <section>
@@ -170,6 +220,21 @@ select{font:12px var(--mono);background:var(--panel);color:var(--ink);
   </section>
 </main>
 
+<div id="scrim">
+  <div class="crt" role="dialog" aria-modal="true" aria-labelledby="crtTitle">
+    <div class="crt-bar">
+      <b id="crtTitle">—</b>
+      <span class="mut" id="crtMeta"></span>
+      <span class="sp"></span>
+      <button data-act="palette">3270 colour</button>
+      <button data-act="close">close &#10005;</button>
+    </div>
+    <div class="tube"><pre id="crtScreen" tabindex="0" aria-label="rendered 3270 screen"></pre></div>
+    <div class="crt-status"><span id="crtField">&nbsp;</span>
+      <span class="hint">TAB next · ENTER send · ESC close</span></div>
+  </div>
+</div>
+
 <script>
 const $ = s => document.querySelector(s);
 const api = (p) => fetch(p).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)));
@@ -194,13 +259,13 @@ const DEEP_SAMPLES = [
   "What validation runs before a new user is added in COUSR01C?"
 ];
 
-function renderList(el, labels, kind) {
+function renderList(el, labels, kind, pick) {
   el.innerHTML = "";
   labels.forEach(l => {
     const li = document.createElement("div");
     li.className = "item"; li.dataset.label = l;
     li.innerHTML = `<span>${l}</span><span class="k">${kind}</span>`;
-    li.onclick = () => openLabel(l);
+    li.onclick = () => (pick || openLabel)(l);
     el.appendChild(li);
   });
 }
@@ -224,14 +289,25 @@ async function openNode(id) {
   };
   const calls = d.outgoing.filter(e => e.relation !== "contains");
   const contains = d.outgoing.filter(e => e.relation === "contains");
+  // Screens come from the BMS maps, not the graph, so they are matched by
+  // program name rather than followed along an edge.
+  const stem = n.label.toUpperCase().replace(/\.CBL$/, "");
+  const scr = SCREENS.filter(x => x.programs.includes(stem));
+  const scrRow = x =>
+    `<div class="edge"><span class="rel">▤ sends map</span>`
+    + `<span class="tgt" data-screen="${x.mapset}">${x.mapset} · ${x.map}</span>`
+    + `<span class="where">${x.fields} fields · ${x.inputs} input</span></div>`;
   $("#detail").innerHTML =
     `<div class="detail-head"><strong>${n.label}</strong><span class="k">${n.kind}</span>
        <span class="where">${n.source_file || "referenced only"} ${n.source_location || ""}</span></div>
      ${calls.length ? `<h2 style="margin-top:14px">Depends on (${calls.length})</h2>` + calls.map(e => edgeRow(e,"out")).join("") : ""}
      ${d.incoming.length ? `<h2 style="margin-top:16px">Used by (${d.incoming.length})</h2>` + d.incoming.map(e => edgeRow(e,"in")).join("") : ""}
+     ${scr.length ? `<h2 style="margin-top:16px">Screens (${scr.length})</h2>` + scr.map(scrRow).join("") : ""}
      ${contains.length ? `<h2 style="margin-top:16px">Paragraphs (${contains.length})</h2>` + contains.map(e => edgeRow(e,"out")).join("") : ""}`;
-  $("#detail").querySelectorAll(".tgt").forEach(el =>
+  $("#detail").querySelectorAll(".tgt[data-id]").forEach(el =>
     el.onclick = () => openNode(el.dataset.id));
+  $("#detail").querySelectorAll(".tgt[data-screen]").forEach(el =>
+    el.onclick = () => openScreen(el.dataset.screen));
   $("#question").value = $("#question").value || `What does ${n.label} do?`;
 }
 
@@ -243,6 +319,183 @@ $("#q").oninput = async (ev) => {
     `<div class="item" data-id="${h.id}"><span>${h.label}</span><span class="k">${h.kind}</span></div>`).join("");
   $("#results").querySelectorAll(".item").forEach(el =>
     el.onclick = () => openNode(el.dataset.id));
+};
+
+// ---- screen viewer -----------------------------------------------------
+// A BMS map is a grid of fields, so it renders as a grid: one <span> per run
+// of cells belonging to the same field. That is what makes the screen both
+// hoverable (POS/LENGTH/ATTRB readout) and typeable, while staying plain
+// selectable text rather than a canvas.
+let SCREENS = [];
+let CRT = null;
+
+const CRT_NUMERIC = f => f.attrb.includes("NUM") || /^9+$/.test(f.picin || "");
+const crtInputs = () => CRT.s.fields
+  .map((f, i) => [f, i]).filter(([f]) => f.input && f.len > 0).map(([, i]) => i);
+
+function fieldClass(f) {
+  const c = [];
+  if (f.input) c.push("unprot");
+  if (f.color) c.push("c-" + f.color);
+  return c.join(" ");
+}
+
+// Ghost the name of every named field the map leaves empty. Input fields are
+// skipped: their underline already marks them, and a 2-char field would show
+// two letters of its name and read as data.
+function crtGhost() {
+  CRT.s.fields.forEach((f, idx) => {
+    // INITIAL=' ' is how the menu options are declared: blank, for the program
+    // to fill. Treat whitespace-only as empty or those 12 rows stay dark.
+    if (!f.name || (f.initial || "").trim() || f.input || f.len < 1) return;
+    const label = f.name.slice(0, f.len);
+    for (let i = 0; i < label.length; i++) {
+      const c = f.col + i;
+      if (c < CRT.s.cols) CRT.grid[f.row - 1][c] = {ch: label[i], field: idx, ghost: true};
+    }
+  });
+}
+
+function crtPaint(idx) {
+  const f = CRT.s.fields[idx], v = CRT.values[idx] || "";
+  for (let i = 0; i < f.len; i++) {
+    const c = f.col + i;
+    if (c < CRT.s.cols) CRT.grid[f.row - 1][c] = {ch: v[i] || " ", field: idx};
+  }
+}
+
+function crtDraw() {
+  const cur = CRT.cur;
+  const cf = cur ? CRT.s.fields[cur.idx] : null;
+  const curR = cf ? cf.row - 1 : -1, curC = cf ? cf.col + cur.off : -1;
+  const lines = CRT.grid.map((row, r) => {
+    const runs = [];
+    row.forEach((cell, c) => {
+      const fi = cell ? cell.field : null;
+      const isCur = r === curR && c === curC;
+      const gh = !!(cell && cell.ghost);
+      const key = (fi === null ? "n" : "f" + fi) + (isCur ? "*" : "") + (gh ? "g" : "");
+      if (!runs.length || runs[runs.length - 1].key !== key) runs.push({key, fi, isCur, gh, txt: ""});
+      runs[runs.length - 1].txt += cell ? cell.ch : " ";
+    });
+    return runs.map(run => {
+      const cls = [];
+      if (run.fi !== null) cls.push(fieldClass(CRT.s.fields[run.fi]));
+      if (run.gh) cls.push("ghost");
+      if (run.isCur) cls.push("cur");
+      if (!cls.filter(Boolean).length) return esc(run.txt);
+      const attr = run.fi !== null ? ` data-f="${run.fi}"` : "";
+      return `<span class="${cls.filter(Boolean).join(" ")}"${attr}>${esc(run.txt)}</span>`;
+    }).join("");
+  });
+  $("#crtScreen").innerHTML = lines.join("\n");
+}
+
+function crtFieldLine(idx) {
+  if (idx == null) return "&nbsp;";
+  const f = CRT.s.fields[idx];
+  const bits = [`POS=(${f.row},${f.col})`, `LEN=${f.len}`];
+  if (f.attrb.length) bits.push(f.attrb.join(","));
+  if (f.color) bits.push("COLOR=" + f.color);
+  if (f.hilight) bits.push("HILIGHT=" + f.hilight);
+  if (f.picin) bits.push("PICIN=" + f.picin);
+  if (f.mustfill) bits.push("MUSTFILL");
+  return `<b>${f.name || "(static)"}</b> ${bits.join(" · ")}`;
+}
+
+function crtMoveTo(idx, off = 0) {
+  CRT.cur = idx == null ? null : {idx, off};
+  crtDraw();
+}
+
+function crtTab(dir) {
+  const ins = crtInputs();
+  if (!ins.length) return;
+  const at = CRT.cur ? ins.indexOf(CRT.cur.idx) : -1;
+  crtMoveTo(ins[(at + dir + ins.length + (at < 0 ? 1 : 0)) % ins.length], 0);
+}
+
+function crtType(ch) {
+  if (!CRT.cur) { crtTab(1); if (!CRT.cur) return; }
+  const {idx, off} = CRT.cur, f = CRT.s.fields[idx];
+  if (CRT_NUMERIC(f) && !/[0-9]/.test(ch)) {
+    $("#crtField").innerHTML = `<b>${f.name}</b> is ATTRB=NUM — digits only`;
+    return;
+  }
+  const v = (CRT.values[idx] || " ".repeat(f.len)).split("");
+  v[off] = ch;
+  CRT.values[idx] = v.join("");
+  crtPaint(idx);
+  crtMoveTo(idx, Math.min(off + 1, f.len - 1));
+}
+
+function crtSend() {
+  const sent = crtInputs()
+    .map(i => [CRT.s.fields[i], (CRT.values[i] || "").trim()])
+    .filter(([, v]) => v !== "")
+    .map(([f, v]) => `${f.name}='${v}'`);
+  $("#crtField").innerHTML = `<b>ENTER</b> AID=DFHENTER · `
+    + (sent.length ? sent.join(" ") : "all fields empty")
+    + ` · nothing runs, no CICS attached`;
+  const t = $("#crtScreen");
+  t.style.opacity = ".45";
+  setTimeout(() => { t.style.opacity = ""; }, 90);
+}
+
+async function openScreen(mapset) {
+  const d = await api("/api/screen?name=" + encodeURIComponent(mapset));
+  CRT = {s: d, values: {}, cur: null,
+         grid: d.cells.map(row => row.map(c => c && {...c}))};
+  crtGhost();
+  $("#crtTitle").textContent = `${d.mapset} · ${d.map}`;
+  $("#crtMeta").textContent =
+    `${d.programs.join(", ") || "no program found"} · ${d.rows}\u00d7${d.cols} · `
+    + `${d.fields.length} fields · ${d.fields.filter(f => f.input).length} input`;
+  $("#crtField").innerHTML = "&nbsp;";
+  crtTab(1);            // park the cursor on the first typeable field
+  crtDraw();
+  $("#scrim").classList.add("on");
+  $("#crtScreen").focus();
+}
+
+function closeScreen() {
+  $("#scrim").classList.remove("on");
+  CRT = null;
+}
+
+$("#scrim").onclick = (e) => { if (e.target.id === "scrim") closeScreen(); };
+$("#scrim").querySelectorAll("button").forEach(b => b.onclick = () => {
+  if (b.dataset.act === "close") return closeScreen();
+  const on = $("#scrim .crt").classList.toggle("col");
+  b.textContent = on ? "phosphor" : "3270 colour";
+});
+$("#crtScreen").onmousemove = (e) => {
+  const sp = e.target.closest("[data-f]");
+  $("#crtField").innerHTML = crtFieldLine(sp ? +sp.dataset.f : null);
+};
+$("#crtScreen").onclick = (e) => {
+  const sp = e.target.closest("[data-f]");
+  if (sp && CRT.s.fields[+sp.dataset.f].input) crtMoveTo(+sp.dataset.f, 0);
+};
+$("#crtScreen").onkeydown = (e) => {
+  if (!CRT) return;
+  if (e.key === "Escape" || e.key === "F3") { e.preventDefault(); return closeScreen(); }
+  if (e.key === "Tab") { e.preventDefault(); return crtTab(e.shiftKey ? -1 : 1); }
+  if (e.key === "Enter") { e.preventDefault(); return crtSend(); }
+  if (e.key === "Backspace") {
+    e.preventDefault();
+    if (!CRT.cur) return;
+    const {idx, off} = CRT.cur, f = CRT.s.fields[idx];
+    const at = Math.max(0, off - (off === f.len - 1 && (CRT.values[idx] || " ")[off] !== " " ? 0 : 1));
+    const v = (CRT.values[idx] || " ".repeat(f.len)).split("");
+    v[at] = " ";
+    CRT.values[idx] = v.join("");
+    crtPaint(idx); crtMoveTo(idx, at);
+    return;
+  }
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault(); crtType(e.key);
+  }
 };
 
 // ---- markdown ----------------------------------------------------------
@@ -431,12 +684,26 @@ $("#question").onkeydown = (e) => {
 };
 
 (async () => {
-  STATS = await api("/api/stats");
+  // A failed /api/screens must not render as "no screens": an empty list under
+  // a heading looks like a missing feature, which is exactly how a mid-restart
+  // page load presented itself once.
+  let screenErr = null;
+  [STATS, SCREENS] = await Promise.all([
+    api("/api/stats"),
+    api("/api/screens").catch(e => { screenErr = e; return []; }),
+  ]);
   $("#hdr").innerHTML = `<b>${STATS.nodes}</b> nodes · <b>${STATS.edges}</b> edges · `
     + `${STATS.kinds.program || 0} programs · ${STATS.kinds.copybook || 0} copybooks · `
-    + `${STATS.kinds.paragraph || 0} paragraphs`;
+    + `${STATS.kinds.paragraph || 0} paragraphs`
+    + (SCREENS.length ? ` · ${SCREENS.length} screens` : "");
   renderList($("#programs"), STATS.programs, "program");
   renderList($("#copybooks"), STATS.copybooks, "copybook");
+  if (screenErr) {
+    $("#screens").innerHTML = `<span class="err">screens unavailable — `
+      + `${esc(screenErr.detail || screenErr.message || "request failed")}. Reload?</span>`;
+  } else {
+    renderList($("#screens"), SCREENS.map(x => x.mapset), "screen", openScreen);
+  }
   $("#samples").innerHTML =
     SAMPLES.map(s => `<button class="chip" data-deep="0">${s}</button>`).join("")
     + DEEP_SAMPLES.map(s => `<button class="chip deep" data-deep="1">⌕ ${s}</button>`).join("");

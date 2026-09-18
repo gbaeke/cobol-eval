@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -48,6 +49,13 @@ GATEWAY_API_KEY = _gateway_key()
 
 # Source files live next to the graph: <corpus>/graphify-out/graph.json
 CORPUS_ROOT = Path(os.environ.get("CORPUS_ROOT", str(GRAPH_PATH.parent.parent)))
+# The screens are not part of the graph's corpus: carddemo-graph/ holds only the
+# cbl/cpy the graph is built from, so the maps get their own root.
+BMS_ROOT = Path(os.environ.get("BMS_ROOT", str(REPO_ROOT / "carddemo/bms")))
+CBL_ROOT = Path(os.environ.get("CBL_ROOT", str(REPO_ROOT / "carddemo/cbl")))
+
+sys.path.insert(0, str(REPO_ROOT))   # bms.py sits at the repo root, beside cobol.py
+import bms  # noqa: E402
 
 app = FastAPI(title="COBOL Graph Explorer")
 
@@ -319,6 +327,58 @@ def impact(label: str, depth: int = 2):
                             "where": f'{e.get("source_file")}:{e.get("source_location")}'})
         frontier = nxt
     return {"root": G.label(start), "affected": out}
+
+
+# ---------------------------------------------------------------- screens
+
+class Screens:
+    """The 17 BMS maps, parsed once at startup like the graph itself.
+
+    Deliberately independent of the graph: a screen is not a node, so nothing
+    here can shift the node counts. The program link is recovered from the
+    COBOL instead, by resolving each SEND/RECEIVE MAP's mapset name.
+    """
+
+    def __init__(self, bms_root: Path, cbl_root: Path):
+        self.mapsets = bms.load_mapsets(bms_root) if bms_root.is_dir() else {}
+        self.programs = bms.program_index(cbl_root) if cbl_root.is_dir() else {}
+
+    def summary(self) -> list[dict]:
+        out = []
+        for name, ms in sorted(self.mapsets.items()):
+            for mp in ms["maps"]:
+                out.append({
+                    "mapset": name, "map": mp["map"],
+                    "rows": mp["rows"], "cols": mp["cols"],
+                    "fields": len(mp["fields"]),
+                    "inputs": sum(1 for f in mp["fields"] if f["input"]),
+                    "programs": self.programs.get(name, []),
+                })
+        return out
+
+    def detail(self, mapset: str) -> dict:
+        ms = self.mapsets.get(mapset.upper())
+        if not ms:
+            raise HTTPException(404, f"no mapset {mapset}")
+        mp = ms["maps"][0]
+        return {"mapset": ms["mapset"], "map": mp["map"],
+                "rows": mp["rows"], "cols": mp["cols"],
+                "fields": mp["fields"],
+                "cells": bms.cells(mp),
+                "programs": self.programs.get(ms["mapset"], [])}
+
+
+S = Screens(BMS_ROOT, CBL_ROOT)
+
+
+@app.get("/api/screens")
+def screens():
+    return S.summary()
+
+
+@app.get("/api/screen")
+def screen(name: str):
+    return S.detail(name)
 
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
